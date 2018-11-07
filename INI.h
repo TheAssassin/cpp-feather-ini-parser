@@ -79,9 +79,6 @@ public:
    template <typename T, typename U>
      static T Convert(U value);
    template <typename T>
-      static void GetLine(fini_sstream_t& out, T& value);
-   static void GetLine(fini_sstream_t& out, fini_string_t& value);
-   template <typename T>
       static size_t GetDataSize(T& value);
    static size_t GetDataSize(fini_string_t value);
 };
@@ -257,84 +254,64 @@ public:
 ///Functions
    void parse(std::istream& file)
    {
-      fini_char_t line[FINI_BUFFER_SIZE];
+      fini_string_t line;
       bool first = true;
       fini_sstream_t out;
-
-      while(!file.eof())
+      while(std::getline(file, line))
       {
-         file.getline(line, FINI_BUFFER_SIZE);
-
          if (first)
          {
             first = false;
-            if (line[0] == 0xEF) //Allows handling of UTF-16/32 documents
+            if (line[0] == static_cast<fini_char_t>(0xEF)) //Allows handling of UTF-16/32 documents
             {
-               memmove(line, line + (CHAR_SIZE * 3), CHAR_SIZE * (FINI_BUFFER_SIZE - 3));
+               line.erase(0, 3);
                return;
             }
          }
-
-         nake(line);
-
-         if (line[0])
+         if (!line.empty())
          {
-            size_t len = fini_strlen(line);
+            auto len = line.length();
             if (len > 0 && !((len >= 2 && (line[0] == '/' && line[1] == '/')) || (len >= 1 && line[0] == '#')))  //Ignore comment and empty lines
             {
-               if (line[0] == '[')  //Section
+               // section
+               if (line[0] == '[')
                {
-                  section_t section;
-                  size_t length = fini_strlen(line) - 2;  //Without section brackets
-                  while(isspace(line[length + 1]))  //Leave out any additional new line characters, not "spaces" as the name suggests
-                     --length;
+                  // without section brackets
+                  size_t length = len - 2;
+                  auto ssection = line.substr(1, line.find(']')-1);
+                  out << ssection;
 
-                  fini_char_t* ssection = (fini_char_t*)calloc(CHAR_SIZE, length + 1);
-                  fini_strncpy(ssection, line + 1, length);  //Count after first bracket
+                  // "convert" to section_t
+                  section_t section;
+                  out >> section;
 
                   current = new keys_t;
-
-                  out << ssection;
-                  free(ssection);
-                  Converters::GetLine(out, section);
-
                   sections[section] = current;
                }
-               else  //Key
+                  // key
+               else
                {
                   key_t key;
                   value_t value;
+                  fini_string_t skey = line.substr(0, line.find('='));
+                  fini_string_t svalue = line.substr(line.find('=') + 1, line.size());
+                  if (!(skey.empty() || svalue.empty())) {
+                     skey = skey.substr(skey.find_first_not_of(' '), skey.length());
 
-                  fini_char_t* skey;
-                  fini_char_t* svalue;
-
-                  skey = fini_strtok(line, _T("="));
-                  svalue = fini_strtok(NULL, _T("\n"));
-
-                  if (skey && svalue)
-                  {
-                     size_t index = 0;  //Without section brackets
-                     while(isspace(skey[index]))  //Leave out any additional new line characters, not "spaces" as the name suggests
-                        index++;
-
-                     if (index != 0)  //Has preceeding white space
-                        fini_strcpy(skey, skey + index);
-
+                     // "convert" value
                      out << skey;
-
-                     Converters::GetLine(out, key);
-
+                     out >> key;
                      out.clear();
                      out.str(fini_string_t());
 
+                      // "convert" value
                      out << svalue;
-                     Converters::GetLine(out, value);
+                     out >> value;
 
                      if (value != value_t())
-                       (*current)[key] = value;
+                        (*current)[key] = value;
                   }
                }
-
                out.clear();
                out.str(fini_string_t()); //Clear existing stream;
             }
@@ -640,17 +617,6 @@ template <>
   inline fini_string_t Converters::Convert<fini_string_t>(const fini_char_t* value)
 {
   return value;
-}
-
-template <typename T>
-  inline void Converters::GetLine(fini_sstream_t& out, T& value)
-{
-  out >> value;
-}
-
-inline void Converters::GetLine(fini_sstream_t& out, fini_string_t& value)
-{
-  std::getline(out, value);
 }
 
 template <typename T>
