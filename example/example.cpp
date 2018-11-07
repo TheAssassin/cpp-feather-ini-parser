@@ -14,7 +14,14 @@ int main()
    typedef INI<> ini_t;  //Makes things shorter/easier to write <Section, Key, Value>
    //or
    //typedef INI<string, string, string> ini_t;  //Equivelant to previous line when wide characters are disabled
-   ini_t ini("file.ini", true);  //File to open/default save filename. The constuctor is set to parse by default, unless specified as false
+   ini_t ini(std::string(TESTS_DIR) + "/file.ini", true);  //File to open/default save filename. The constuctor is set to parse by default, unless specified as false
+
+   std::cout << "File we just read:" << std::endl
+             << ini << std::endl;
+
+   auto sec2Key1 = ini["Section2"]["Key1"];
+   if (sec2Key1.length() != 491)
+      throw std::length_error("Wrong length: " + std::to_string(sec2Key1.length()));
 
    ///Manipulate and access contents
    centerString("########## Access & Manipulate Contents ##########");
@@ -44,7 +51,7 @@ int main()
    cout << ini.get("Key1", -1.0) << endl;  //Return value as double
    ini.set(123, 123);  //Will convert to provided INI data type for key/value, in this case string for both
 
-   ini.save();
+   ini.save("/dev/null");
    ini.clear();
    ini.parse();  //Parses file into objects in memory
 
